@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 260">
+  <rect width="900" height="260" fill="#F6F7F4"/>
+  <g transform="translate(25 25)">
+    <rect width="210" height="210" rx="48" fill="#0F6B50"/>
+    <path
+      d="M156 72c-16-14-38-22-62-22-49 0-88 39-88 88s39 88 88 88c24 0 46-8 62-22"
+      fill="none"
+      stroke="#FFFFFF"
+      stroke-width="34"
+      stroke-linecap="round"
+    />
+    <circle cx="166" cy="138" r="14" fill="#FFFFFF"/>
+  </g>
+  <text
+    x="285"
+    y="165"
+    font-family="Inter, Arial, sans-serif"
+    font-size="112"
+    font-weight="700"
+    letter-spacing="-5"
+    fill="#111714"
+  >Custaí</text>
+</svg>

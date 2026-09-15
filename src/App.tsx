@@ -506,6 +506,7 @@ function App() {
   const [savedProducts, setSavedProducts] = useState<SavedProduct[]>([]);
   const [isPro, setIsPro] = useState(false);
   const [showProModal, setShowProModal] = useState(false);
+  const [selectedProPlan, setSelectedProPlan] = useState<"monthly" | "annual">("annual");
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
 
   const [showDetails, setShowDetails] = useState(false);
@@ -3344,26 +3345,53 @@ function App() {
             </div>
 
             <div className="mt-5 grid grid-cols-2 gap-2">
-              <div className="rounded-2xl border border-neutral-200 p-4">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-neutral-400">Mensal</p>
+              <button
+                type="button"
+                onClick={() => setSelectedProPlan("monthly")}
+                aria-pressed={selectedProPlan === "monthly"}
+                className={`rounded-2xl border p-4 text-left transition active:scale-[0.99] ${
+                  selectedProPlan === "monthly"
+                    ? "border-[#0F6B50] bg-[#F1F7F4] ring-1 ring-[#0F6B50]"
+                    : "border-neutral-200 bg-white hover:border-neutral-300"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <p className={`text-[11px] font-semibold uppercase tracking-[0.06em] ${selectedProPlan === "monthly" ? "text-[#0F6B50]" : "text-neutral-400"}`}>Mensal</p>
+                  {selectedProPlan === "monthly" && <Check size={15} className="text-[#0F6B50]" strokeWidth={3} />}
+                </div>
                 <p className="mt-1 text-[20px] font-semibold text-neutral-900">R$ 9,90</p>
                 <p className="mt-1 text-[11px] text-neutral-400">por mês</p>
-              </div>
-              <div className="rounded-2xl border border-[#BFDACC] bg-[#F1F7F4] p-4">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#0F6B50]">Anual</p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedProPlan("annual")}
+                aria-pressed={selectedProPlan === "annual"}
+                className={`rounded-2xl border p-4 text-left transition active:scale-[0.99] ${
+                  selectedProPlan === "annual"
+                    ? "border-[#0F6B50] bg-[#F1F7F4] ring-1 ring-[#0F6B50]"
+                    : "border-neutral-200 bg-white hover:border-neutral-300"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <p className={`text-[11px] font-semibold uppercase tracking-[0.06em] ${selectedProPlan === "annual" ? "text-[#0F6B50]" : "text-neutral-400"}`}>Anual</p>
+                  {selectedProPlan === "annual" && <Check size={15} className="text-[#0F6B50]" strokeWidth={3} />}
+                </div>
                 <p className="mt-1 text-[20px] font-semibold text-neutral-900">R$ 79,90</p>
                 <p className="mt-1 text-[11px] text-neutral-500">por ano</p>
-              </div>
+                <span className="mt-2 inline-block rounded-full bg-[#EAF4EF] px-2 py-1 text-[10px] font-bold text-[#0F6B50]">ECONOMIZE R$ 38,90</span>
+              </button>
             </div>
 
             <button
+              type="button"
               onClick={() => {
                 setShowProModal(false);
-                setError("A tela de assinatura está pronta. Agora vamos conectar o pagamento e a validação do Pro.");
+                setError(`Plano ${selectedProPlan === "annual" ? "anual" : "mensal"} selecionado. O próximo passo será conectar o pagamento e a validação do Pro.`);
               }}
               className="custai-primary mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#0F6B50] px-4 py-4 text-[14px] font-semibold text-white"
             >
-              <Crown size={17} /> Quero assinar o Pro
+              <Crown size={17} /> Quero assinar o {selectedProPlan === "annual" ? "Pro anual" : "Pro mensal"}
             </button>
             <p className="mt-3 text-center text-[11px] leading-4 text-neutral-400">O pagamento ainda não é cobrado nesta versão. Seus produtos continuam salvos neste aparelho.</p>
           </div>

@@ -3,6 +3,8 @@ import {
   ArrowRight,
   CakeSlice,
   Check,
+  Crown,
+  Lock,
   ChevronDown,
   ChevronUp,
   Cookie,
@@ -502,6 +504,8 @@ function App() {
   const [showQuickDeliveryAdvanced, setShowQuickDeliveryAdvanced] = useState(false);
 
   const [savedProducts, setSavedProducts] = useState<SavedProduct[]>([]);
+  const [isPro, setIsPro] = useState(false);
+  const [showProModal, setShowProModal] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
 
   const [showDetails, setShowDetails] = useState(false);
@@ -552,6 +556,9 @@ function App() {
   }
 
   useEffect(() => {
+    const storedPlan = localStorage.getItem("custai-plan");
+    if (storedPlan === "pro") setIsPro(true);
+
     const stored = localStorage.getItem("calculadora-precos-produtos");
 
     if (stored) {
@@ -1010,7 +1017,22 @@ function App() {
     };
   }
 
+  function openPro() {
+    setShowProModal(true);
+  }
+
+  function requirePro() {
+    if (isPro) return true;
+    setShowProModal(true);
+    return false;
+  }
+
   function saveProduct() {
+    if (!isPro && !editingProductId && savedProducts.length >= 5) {
+      setShowProModal(true);
+      return;
+    }
+
     const id = editingProductId ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const product = getProductSnapshot(id);
 
@@ -1047,6 +1069,11 @@ function App() {
   }
 
   function duplicateProduct(product: SavedProduct) {
+    if (!isPro && savedProducts.length >= 5) {
+      setShowProModal(true);
+      return;
+    }
+
     const copy: SavedProduct = {
       ...product,
       id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -1060,6 +1087,8 @@ function App() {
   }
 
   function exportData() {
+    if (!requirePro()) return;
+
     const backup = {
       app: "Custaí",
       version: 1,
@@ -1081,6 +1110,7 @@ function App() {
   }
 
   function importData(file: File) {
+    if (!requirePro()) return;
     const reader = new FileReader();
 
     reader.onload = () => {
@@ -2978,11 +3008,17 @@ function App() {
 
         <div className="mt-3 rounded-2xl border border-neutral-200 bg-white">
           <button
-            onClick={() => setShowPlanning((value) => !value)}
+            onClick={() => {
+              if (!requirePro()) return;
+              setShowPlanning((value) => !value);
+            }}
             className="flex w-full items-center justify-between p-4 text-left"
           >
             <div>
-              <p className="text-[14px] font-semibold text-neutral-900">Planejar suas vendas</p>
+              <div className="flex items-center gap-2">
+                <p className="text-[14px] font-semibold text-neutral-900">Planejar suas vendas</p>
+                {!isPro && <span className="rounded-full bg-[#EAF4EF] px-2 py-1 text-[10px] font-bold text-[#0F6B50]">PRO</span>}
+              </div>
               <p className="mt-1 text-[12px] text-neutral-400">Veja quanto precisa vender para chegar a uma meta.</p>
             </div>
             {showPlanning ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
@@ -3165,11 +3201,11 @@ function App() {
               onClick={exportData}
               className="flex items-center justify-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-3 text-[12px] font-medium text-neutral-700 transition hover:border-neutral-300 active:scale-[0.99]"
             >
-              <Download size={15} />
+              {!isPro ? <Lock size={14} /> : <Download size={15} />}
               Fazer backup
             </button>
             <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-3 text-[12px] font-medium text-neutral-700 transition hover:border-neutral-300 active:scale-[0.99]">
-              <Upload size={15} />
+              {!isPro ? <Lock size={14} /> : <Upload size={15} />}
               Restaurar backup
               <input
                 type="file"
@@ -3189,7 +3225,7 @@ function App() {
           <div className="mt-8">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-[17px] font-semibold text-neutral-900">Produtos salvos</h2>
-              <span className="text-[12px] text-neutral-400">{savedProducts.length}</span>
+              <span className="text-[12px] text-neutral-400">{savedProducts.length}{!isPro && " / 5"}</span>
             </div>
             <div className="space-y-2">
               {savedProducts.map((product) => (
@@ -3242,6 +3278,24 @@ function App() {
       <div className="custai-shell mx-auto min-h-screen w-full max-w-xl px-5 pb-12 pt-6 sm:px-8">
         {renderHeader()}
 
+        {step !== "quickDelivery" && (
+          <button
+            onClick={openPro}
+            className="mb-4 flex w-full items-center justify-between rounded-2xl border border-[#CFE3D8] bg-white px-4 py-3 text-left shadow-[0_1px_2px_rgba(17,23,20,.025)]"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#EAF4EF] text-[#0F6B50]">
+                <Crown size={17} />
+              </div>
+              <div>
+                <p className="text-[13px] font-semibold text-neutral-900">Custaí Pro</p>
+                <p className="mt-0.5 text-[11px] text-neutral-400">Mais produtos, simulador e ferramentas avançadas</p>
+              </div>
+            </div>
+            <span className="rounded-full bg-[#0F6B50] px-3 py-1.5 text-[10px] font-bold text-white">{isPro ? "ATIVO" : "VER PRO"}</span>
+          </button>
+        )}
+
         {step === "quickDelivery" && renderQuickDelivery()}
         {step === "category" && renderCategory()}
         {step === "product" && renderProduct()}
@@ -3258,6 +3312,63 @@ function App() {
           </p>
         )}
       </div>
+
+      {showProModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/35 p-3 sm:items-center">
+          <div className="w-full max-w-md rounded-[28px] bg-white p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-[#EAF4EF] px-3 py-1.5 text-[11px] font-bold text-[#0F6B50]">
+                  <Crown size={13} /> CUSTAÍ PRO
+                </div>
+                <h2 className="text-[25px] font-semibold tracking-[-0.03em] text-neutral-900">Faça o Custaí trabalhar mais por você.</h2>
+                <p className="mt-2 text-[13px] leading-5 text-neutral-500">Desbloqueie ferramentas que economizam tempo e ajudam você a decidir melhor seus preços.</p>
+              </div>
+              <button onClick={() => setShowProModal(false)} className="rounded-full bg-neutral-100 px-3 py-2 text-[12px] text-neutral-500">Fechar</button>
+            </div>
+
+            <div className="mt-5 space-y-2.5">
+              {[
+                "Produtos e receitas ilimitados",
+                "Histórico de custos e atualização de preços",
+                "Simulador: descubra quanto sobra em cada preço",
+                "Meta de lucro: quanto vender por dia e por mês",
+                "Análise de quais produtos dão mais lucro",
+                "Backup e restauração dos seus dados",
+              ].map((benefit) => (
+                <div key={benefit} className="flex items-start gap-3 rounded-2xl bg-[#F7FAF8] p-3">
+                  <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#0F6B50] text-white"><Check size={12} strokeWidth={3} /></div>
+                  <span className="text-[13px] leading-5 text-neutral-700">{benefit}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <div className="rounded-2xl border border-neutral-200 p-4">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-neutral-400">Mensal</p>
+                <p className="mt-1 text-[20px] font-semibold text-neutral-900">R$ 9,90</p>
+                <p className="mt-1 text-[11px] text-neutral-400">por mês</p>
+              </div>
+              <div className="rounded-2xl border border-[#BFDACC] bg-[#F1F7F4] p-4">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#0F6B50]">Anual</p>
+                <p className="mt-1 text-[20px] font-semibold text-neutral-900">R$ 79,90</p>
+                <p className="mt-1 text-[11px] text-neutral-500">por ano</p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => {
+                setShowProModal(false);
+                setError("A tela de assinatura está pronta. Agora vamos conectar o pagamento e a validação do Pro.");
+              }}
+              className="custai-primary mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#0F6B50] px-4 py-4 text-[14px] font-semibold text-white"
+            >
+              <Crown size={17} /> Quero assinar o Pro
+            </button>
+            <p className="mt-3 text-center text-[11px] leading-4 text-neutral-400">O pagamento ainda não é cobrado nesta versão. Seus produtos continuam salvos neste aparelho.</p>
+          </div>
+        </div>
+      )}
 
       <style>{`
         .custai-app {

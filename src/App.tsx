@@ -515,7 +515,12 @@ function App() {
   const [savedProducts, setSavedProducts] = useState<SavedProduct[]>([]);
   const [isPro, setIsPro] = useState(false);
   const [showProModal, setShowProModal] = useState(false);
-  const [selectedProPlan, setSelectedProPlan] = useState<"monthly" | "annual">("annual");
+  const CAKTO_CHECKOUTS = {
+  monthly: "https://pay.cakto.com.br/37rra4p_1110420",
+  annual: "https://pay.cakto.com.br/5x4yjt9",
+} as const;
+
+const [selectedProPlan, setSelectedProPlan] = useState<"monthly" | "annual">("annual");
   const [showProAnalysis, setShowProAnalysis] = useState(false);
   const [showCostHistoryId, setShowCostHistoryId] = useState<string | null>(null);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
@@ -3548,14 +3553,14 @@ function App() {
             <button
               type="button"
               onClick={() => {
-                setShowProModal(false);
-                setError(`Plano ${selectedProPlan === "annual" ? "anual" : "mensal"} selecionado. O próximo passo será conectar o pagamento e a validação do Pro.`);
+                const checkoutUrl = CAKTO_CHECKOUTS[selectedProPlan];
+                window.location.assign(checkoutUrl);
               }}
               className="custai-primary mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#0F6B50] px-4 py-4 text-[14px] font-semibold text-white"
             >
               <Crown size={17} /> Quero assinar o {selectedProPlan === "annual" ? "Pro anual" : "Pro mensal"}
             </button>
-            <p className="mt-3 text-center text-[11px] leading-4 text-neutral-400">O pagamento ainda não é cobrado nesta versão. Seus produtos continuam salvos neste aparelho.</p>
+            <p className="mt-3 text-center text-[11px] leading-4 text-neutral-400">Pagamento seguro pelo checkout da Cakto. Após a confirmação, vamos liberar o Custaí Pro para sua assinatura.</p>
           </div>
         </div>
       )}

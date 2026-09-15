@@ -408,8 +408,37 @@ function BrandMark() {
   );
 }
 
+type BeforeInstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
+};
+
+function getDeviceInfo() {
+  if (typeof navigator === "undefined") {
+    return { label: "seu dispositivo", ios: false, installed: false };
+  }
+
+  const userAgent = navigator.userAgent.toLowerCase();
+  const ios = /iphone|ipad|ipod/.test(userAgent);
+  const android = /android/.test(userAgent);
+  const mac = /macintosh|mac os x/.test(userAgent) && !ios;
+  const windows = /windows/.test(userAgent);
+  const installed =
+    window.matchMedia?.("(display-mode: standalone)").matches ||
+    Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
+
+  if (ios) return { label: "iPhone ou iPad", ios: true, installed };
+  if (android) return { label: "Android", ios: false, installed };
+  if (mac) return { label: "Mac", ios: false, installed };
+  if (windows) return { label: "Windows", ios: false, installed };
+  return { label: "computador", ios: false, installed };
+}
+
 function App() {
   const [step, setStep] = useState<Step>("category");
+  const [deferredInstallPrompt, setDeferredInstallPrompt] =
+    useState<BeforeInstallPromptEvent | null>(null);
+  const [deviceInfo, setDeviceInfo] = useState(() => getDeviceInfo());
 
   const [category, setCategory] = useState("");
   const [productName, setProductName] = useState("");
@@ -481,6 +510,46 @@ function App() {
     null,
   );
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setDeferredInstallPrompt(event as BeforeInstallPromptEvent);
+    };
+
+    const handleAppInstalled = () => {
+      setDeferredInstallPrompt(null);
+      setDeviceInfo((current) => ({ ...current, installed: true }));
+    };
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    window.addEventListener("appinstalled", handleAppInstalled);
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+      window.removeEventListener("appinstalled", handleAppInstalled);
+    };
+  }, []);
+
+  async function installApp() {
+    if (deferredInstallPrompt) {
+      await deferredInstallPrompt.prompt();
+      await deferredInstallPrompt.userChoice;
+      setDeferredInstallPrompt(null);
+      return;
+    }
+
+    if (deviceInfo.ios) {
+      window.alert(
+        "No iPhone ou iPad: toque em Compartilhar no Safari e depois em Adicionar à Tela de Início.",
+      );
+      return;
+    }
+
+    window.alert(
+      "Para instalar o Custaí, abra o menu do navegador e escolha a opção Instalar aplicativo ou Adicionar à tela inicial.",
+    );
+  }
 
   useEffect(() => {
     const stored = localStorage.getItem("calculadora-precos-produtos");
@@ -1159,6 +1228,34 @@ function App() {
             Calcule o custo do seu produto e encontre um preço de venda
             adequado para o seu negócio.
           </p>
+
+          {!deviceInfo.installed && (
+            <div className="custai-install-card mt-7">
+              <div>
+                <p className="custai-install-title">
+                  Use o Custaí como aplicativo
+                </p>
+                <p className="custai-install-description">
+                  Detectamos que você está no {deviceInfo.label}. Instale na tela inicial para abrir o Custaí mais rápido.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={installApp}
+                className="custai-install-button"
+              >
+                <Download size={17} />
+                {deviceInfo.ios ? "Como instalar" : "Instalar app"}
+              </button>
+            </div>
+          )}
+
+          {deviceInfo.installed && (
+            <div className="custai-installed-badge mt-7">
+              <Check size={16} />
+              Custaí já está instalado neste dispositivo
+            </div>
+          )}
         </header>
       );
     }
@@ -1335,14 +1432,14 @@ function App() {
                     onClick={() => setQuickChannel(item)}
                     className={`flex w-full items-center justify-between rounded-2xl border p-4 text-left transition ${
                       selected
-                        ? "custai-option-selected border-[#0F6B50] bg-[#0F6B50] text-white"
+                        ? "border-neutral-900 bg-[#0F6B50] text-white"
                         : "border-neutral-200 bg-white text-neutral-900"
                     }`}
                   >
                     <div className="flex items-center gap-3">
                       <div
                         className={`flex h-9 w-9 items-center justify-center rounded-xl ${
-                          selected ? "custai-option-icon bg-white/10" : "custai-option-icon bg-neutral-100"
+                          selected ? "bg-white/10" : "bg-neutral-100"
                         }`}
                       >
                         <Store size={17} />
@@ -1352,7 +1449,7 @@ function App() {
                         <p className="text-[14px] font-semibold">{item.name}</p>
                         <p
                           className={`mt-1 text-[11px] ${
-                            selected ? "custai-option-description text-white/70" : "custai-option-description text-neutral-400"
+                            selected ? "text-neutral-300" : "text-neutral-400"
                           }`}
                         >
                           O Custaí calcula as taxas por trás da escolha.
@@ -1394,7 +1491,7 @@ function App() {
                     }}
                     className={`w-full rounded-2xl border p-4 text-left transition ${
                       selected
-                        ? "custai-option-selected border-[#0F6B50] bg-[#0F6B50] text-white"
+                        ? "border-neutral-900 bg-neutral-900 text-white"
                         : "border-neutral-200 bg-white text-neutral-900"
                     }`}
                   >
@@ -1406,8 +1503,8 @@ function App() {
                         <p
                           className={`mt-1 text-[11px] ${
                             selected
-                              ? "custai-option-description text-white/70"
-                              : "custai-option-description text-neutral-400"
+                              ? "text-neutral-400"
+                              : "text-neutral-400"
                           }`}
                         >
                           {option.description}
@@ -1453,7 +1550,7 @@ function App() {
                     }
                     className={`rounded-2xl border p-4 text-left transition ${
                       selected
-                        ? "custai-option-selected border-[#0F6B50] bg-[#0F6B50] text-white"
+                        ? "border-neutral-900 bg-neutral-900 text-white"
                         : "border-neutral-200 bg-white text-neutral-900"
                     }`}
                   >
@@ -1462,7 +1559,7 @@ function App() {
                     </p>
                     <p
                       className={`mt-1 text-[11px] ${
-                        selected ? "custai-option-description text-white/70" : "custai-option-description text-neutral-400"
+                        selected ? "text-neutral-400" : "text-neutral-400"
                       }`}
                     >
                       {option.description}
@@ -1489,7 +1586,7 @@ function App() {
                   onClick={() => setQuickDeliveryPayoutMode(option.value)}
                   className={`flex w-full items-center justify-between rounded-2xl border p-4 text-left transition ${
                     selected
-                      ? "custai-option-selected border-[#0F6B50] bg-[#0F6B50] text-white"
+                      ? "border-neutral-900 bg-neutral-900 text-white"
                       : "border-neutral-200 bg-white text-neutral-900"
                   }`}
                 >
@@ -1499,7 +1596,7 @@ function App() {
                     </p>
                     <p
                       className={`mt-1 text-[11px] ${
-                        selected ? "custai-option-description text-white/70" : "custai-option-description text-neutral-400"
+                        selected ? "text-neutral-400" : "text-neutral-400"
                       }`}
                     >
                       {option.description}
@@ -2044,7 +2141,7 @@ function App() {
 
         <button
           onClick={addIngredient}
-          className="custai-primary mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#0F6B50] px-4 py-4 text-[14px] font-semibold text-white transition hover:bg-[#0B5A43] active:scale-[0.99]"
+          className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-neutral-900 px-4 py-4 text-[14px] font-medium text-white transition hover:bg-neutral-800 active:scale-[0.99]"
         >
           {editingIngredientId ? (
             <>
@@ -3220,19 +3317,6 @@ function App() {
           border: 1px solid #0F6B50;
           box-shadow: 0 8px 22px rgba(15,107,80,.16);
         }
-        .custai-app .custai-option-selected {
-          border-color: #0F6B50 !important;
-          background: #0F6B50 !important;
-          color: #FFFFFF !important;
-          box-shadow: 0 8px 22px rgba(15,107,80,.12);
-        }
-        .custai-app .custai-option-selected .custai-option-icon {
-          background: rgba(255,255,255,.12) !important;
-          color: #FFFFFF !important;
-        }
-        .custai-app .custai-option-selected .custai-option-description {
-          color: rgba(255,255,255,.70) !important;
-        }
         .custai-app .custai-secondary {
           min-height: 52px;
         }
@@ -3318,10 +3402,73 @@ function App() {
           height: 5px;
           background: #E7ECE9;
         }
+        .custai-install-card {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+          padding: 16px;
+          border: 1px solid #DDE5E1;
+          border-radius: 18px;
+          background: #FFFFFF;
+          box-shadow: 0 8px 24px rgba(15, 107, 80, 0.06);
+        }
+        .custai-install-title {
+          margin: 0;
+          font-size: 14px;
+          font-weight: 700;
+          color: #111714;
+        }
+        .custai-install-description {
+          margin: 4px 0 0;
+          font-size: 12px;
+          line-height: 1.5;
+          color: #69736F;
+        }
+        .custai-install-button {
+          flex: 0 0 auto;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 7px;
+          min-height: 44px;
+          padding: 0 15px;
+          border-radius: 13px;
+          background: #0F6B50;
+          color: #FFFFFF;
+          font-size: 13px;
+          font-weight: 700;
+          transition: transform 160ms ease, background 160ms ease;
+        }
+        .custai-install-button:hover {
+          background: #0B5B44;
+        }
+        .custai-install-button:active {
+          transform: scale(0.98);
+        }
+        .custai-installed-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 7px;
+          padding: 10px 13px;
+          border: 1px solid #D8E7E1;
+          border-radius: 999px;
+          background: #F1F8F5;
+          color: #0F6B50;
+          font-size: 12px;
+          font-weight: 700;
+        }
         @media (max-width: 640px) {
           .custai-shell {
             padding-left: 18px;
             padding-right: 18px;
+          }
+          .custai-install-card {
+            align-items: stretch;
+            flex-direction: column;
+          }
+          .custai-install-button {
+            width: 100%;
           }
           .custai-app .custai-title {
             font-size: 32px;

@@ -76,6 +76,15 @@ type SavedProduct = {
   currentPrice: number;
   channel: Channel;
   createdAt: string;
+  updatedAt?: string;
+  costPerUnit?: number;
+  recommendedPrice?: number;
+  profitPerUnit?: number;
+  costHistory?: {
+    date: string;
+    costPerUnit: number;
+    recommendedPrice: number;
+  }[];
 };
 
 type Channel = {
@@ -507,6 +516,8 @@ function App() {
   const [isPro, setIsPro] = useState(false);
   const [showProModal, setShowProModal] = useState(false);
   const [selectedProPlan, setSelectedProPlan] = useState<"monthly" | "annual">("annual");
+  const [showProAnalysis, setShowProAnalysis] = useState(false);
+  const [showCostHistoryId, setShowCostHistoryId] = useState<string | null>(null);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
 
   const [showDetails, setShowDetails] = useState(false);
@@ -996,7 +1007,28 @@ function App() {
     setStep("result");
   }
 
-  function getProductSnapshot(id: string, nameOverride?: string): SavedProduct {
+  function getProductSnapshot(
+    id: string,
+    nameOverride?: string,
+    previous?: SavedProduct,
+  ): SavedProduct {
+    const now = new Date().toISOString();
+    const previousHistory = previous?.costHistory ?? [];
+    const costChanged =
+      !previous ||
+      Math.abs((previous.costPerUnit ?? 0) - costPerUnit) > 0.005;
+
+    const costHistory = costChanged
+      ? [
+          ...previousHistory,
+          {
+            date: now,
+            costPerUnit,
+            recommendedPrice,
+          },
+        ].slice(-20)
+      : previousHistory;
+
     return {
       id,
       name: nameOverride ?? (productName || "Produto sem nome"),
@@ -1014,7 +1046,12 @@ function App() {
       margin: marginValue,
       currentPrice,
       channel,
-      createdAt: new Date().toISOString(),
+      createdAt: previous?.createdAt ?? now,
+      updatedAt: now,
+      costPerUnit,
+      recommendedPrice,
+      profitPerUnit: actualProfitAtRecommended,
+      costHistory,
     };
   }
 
@@ -1035,11 +1072,15 @@ function App() {
     }
 
     const id = editingProductId ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const product = getProductSnapshot(id);
+    const previous = editingProductId
+      ? savedProducts.find((item) => item.id === editingProductId)
+      : undefined;
+
+    const product = getProductSnapshot(id, undefined, previous);
 
     if (editingProductId) {
       setSavedProducts((current) =>
-        current.map((item) => (item.id === editingProductId ? { ...product, createdAt: item.createdAt } : item)),
+        current.map((item) => (item.id === editingProductId ? product : item)),
       );
     } else {
       setSavedProducts((current) => [product, ...current]);
@@ -2877,6 +2918,68 @@ function App() {
     );
   }
 
+  const profitRankedProducts = useMemo(() => {
+    return [...savedProducts]
+      .map((product) => {
+        const cost = product.costPerUnit ?? 0;
+        const recommended = product.recommendedPrice ?? product.currentPrice ?? 0;
+        const profit =
+          product.profitPerUnit ??
+          (recommended > 0 ? recommended - cost : 0);
+
+        return { product, cost, recommended, profit };
+      })
+      .filter(({ product, cost, recommended }) => product.name && (cost > 0 || recommended > 0))
+      .sort((a, b) => b.profit - a.profit);
+  }, [savedProducts]);
+
+  function renderProAnalysis() {
+    if (!requirePro()) return null;
+
+    const topProducts = profitRankedProducts.slice(0, 5);
+
+    return (
+      <div className="mt-3 rounded-2xl border border-[#CFE3D8] bg-white p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[14px] font-semibold text-neutral-900">Análise dos seus produtos</p>
+            <p className="mt-1 text-[12px] leading-5 text-neutral-400">
+              Compare quanto sobra em cada produto salvo.
+            </p>
+          </div>
+          <span className="rounded-full bg-[#EAF4EF] px-2 py-1 text-[10px] font-bold text-[#0F6B50]">PRO</span>
+        </div>
+
+        {topProducts.length === 0 ? (
+          <p className="mt-4 rounded-xl bg-neutral-50 p-3 text-[12px] leading-5 text-neutral-500">
+            Salve alguns produtos para começar a comparar a rentabilidade.
+          </p>
+        ) : (
+          <div className="mt-4 space-y-2">
+            {topProducts.map(({ product, cost, recommended, profit }, index) => (
+              <div key={product.id} className="rounded-xl border border-neutral-100 bg-[#F7FAF8] p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-[13px] font-semibold text-neutral-900">
+                      {index + 1}. {product.name}
+                    </p>
+                    <p className="mt-1 text-[11px] text-neutral-400">
+                      Custo {formatCurrency(cost)} · Preço {formatCurrency(recommended)}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-[14px] font-semibold text-[#0F6B50]">{formatCurrency(profit)}</p>
+                    <p className="text-[10px] text-neutral-400">sobra/venda</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   function renderResult() {
     const displayedChannelName =
       channel.id === "custom" ? customChannelName : channel.name;
@@ -3172,8 +3275,12 @@ function App() {
           onClick={saveProduct}
           className="custai-save mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border px-4 py-4 text-[14px] font-semibold transition"
         >
-          <Save size={17} />
-          {editingProductId ? "Atualizar produto" : "Salvar este produto"}
+          {(!isPro && !editingProductId && savedProducts.length >= 5) ? <Lock size={17} /> : <Save size={17} />}
+          {editingProductId
+            ? "Atualizar produto"
+            : (!isPro && savedProducts.length >= 5)
+              ? "Limite gratuito atingido — ver Pro"
+              : "Salvar este produto"}
         </button>
 
         <button
@@ -3224,10 +3331,25 @@ function App() {
 
         {savedProducts.length > 0 && (
           <div className="mt-8">
-            <div className="mb-3 flex items-center justify-between">
+            <div className="mb-3 flex items-center justify-between gap-3">
               <h2 className="text-[17px] font-semibold text-neutral-900">Produtos salvos</h2>
-              <span className="text-[12px] text-neutral-400">{savedProducts.length}{!isPro && " / 5"}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-[12px] text-neutral-400">{savedProducts.length}{!isPro && " / 5"}</span>
+                <button
+                  onClick={() => {
+                    if (!requirePro()) return;
+                    setShowProAnalysis((value) => !value);
+                  }}
+                  className="flex items-center gap-1.5 rounded-full border border-[#CFE3D8] bg-[#F7FAF8] px-2.5 py-1.5 text-[10px] font-bold text-[#0F6B50]"
+                >
+                  {!isPro && <Lock size={11} />}
+                  Analisar
+                </button>
+              </div>
             </div>
+
+            {showProAnalysis && renderProAnalysis()}
+
             <div className="space-y-2">
               {savedProducts.map((product) => (
                 <div key={product.id} className="rounded-2xl border border-neutral-200 bg-white p-4">
@@ -3246,25 +3368,65 @@ function App() {
                     </button>
                   </div>
 
-                  <div className="mt-3 flex gap-2">
+                  <div className="mt-3 grid grid-cols-3 gap-2">
                     <button
                       onClick={() => duplicateProduct(product)}
-                      className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-neutral-200 px-3 py-2.5 text-[12px] font-medium text-neutral-700 transition hover:border-neutral-300"
+                      className="flex items-center justify-center gap-2 rounded-xl border border-neutral-200 px-2 py-2.5 text-[12px] font-medium text-neutral-700 transition hover:border-neutral-300"
                     >
                       <Plus size={14} />
                       Duplicar
                     </button>
                     <button
                       onClick={() => {
+                        if (!requirePro()) return;
+                        setShowCostHistoryId((current) => current === product.id ? null : product.id);
+                      }}
+                      className="flex items-center justify-center gap-1.5 rounded-xl border border-[#CFE3D8] bg-[#F7FAF8] px-2 py-2.5 text-[11px] font-semibold text-[#0F6B50] transition hover:border-[#A9CDBC]"
+                    >
+                      {!isPro && <Lock size={12} />}
+                      Histórico
+                    </button>
+                    <button
+                      onClick={() => {
                         if (editingProductId === product.id) setEditingProductId(null);
                         setSavedProducts((current) => current.filter((item) => item.id !== product.id));
                       }}
-                      className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-neutral-200 px-3 py-2.5 text-[12px] font-medium text-neutral-600 transition hover:border-neutral-300"
+                      className="flex items-center justify-center gap-2 rounded-xl border border-neutral-200 px-2 py-2.5 text-[12px] font-medium text-neutral-600 transition hover:border-neutral-300"
                     >
                       <Trash2 size={14} />
                       Excluir
                     </button>
                   </div>
+
+                  {showCostHistoryId === product.id && (
+                    <div className="mt-2 rounded-xl border border-[#E2ECE6] bg-[#F7FAF8] p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[12px] font-semibold text-neutral-800">Histórico de custos</p>
+                        <span className="text-[10px] text-neutral-400">{product.costHistory?.length ?? 0} registros</span>
+                      </div>
+                      {(product.costHistory?.length ?? 0) > 0 ? (
+                        <div className="mt-2 space-y-1.5">
+                          {[...(product.costHistory ?? [])].reverse().slice(0, 5).map((entry, index) => (
+                            <div key={`${entry.date}-${index}`} className="flex items-center justify-between gap-3 text-[11px]">
+                              <span className="text-neutral-500">
+                                {new Date(entry.date).toLocaleDateString("pt-BR")}
+                              </span>
+                              <span className="font-medium text-neutral-700">
+                                {formatCurrency(entry.costPerUnit)}
+                              </span>
+                              <span className="text-neutral-500">
+                                preço {formatCurrency(entry.recommendedPrice)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-[11px] leading-5 text-neutral-400">
+                          O histórico começa a ser registrado quando você salva ou atualiza o produto.
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
